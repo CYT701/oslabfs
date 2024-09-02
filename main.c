@@ -1,42 +1,44 @@
-#include <linux/module.h>
 #include <linux/fs.h>
-#include <linux/slab.h>
 #include <linux/init.h>
+#include <linux/module.h>
 #include <linux/mount.h>
 #include <linux/pagemap.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/vmalloc.h>  // 使用 vmalloc
 #include "myfs.h"
 
 #define MYFS_MAGIC 0xEF53
-#define BLOCK_SIZE 4096  // 每個數據塊大小為 4KB
-#define INODE_COUNT 1024 // 文件系統中最多有 1024 個 inode
-#define BITMAP_SIZE (INODE_COUNT / 8) // 簡單假設每個 bitmap 大小
-#define DATA_BLOCK_COUNT 1024 // 假設有 1024 個數據塊
+#define BLOCK_SIZE 4096   // 每個數據塊大小為 4KB
+#define INODE_COUNT 1024  // 文件系統中最多有 1024 個 inode
+#define BITMAP_SIZE (INODE_COUNT / 8)  // 簡單假設每個 bitmap 大小
+#define DATA_BLOCK_COUNT 1024          // 假設有 1024 個數據塊
 
 
-static int myfs_fill_super(struct super_block *sb, void *data, int silent) {
-    
+static int myfs_fill_super(struct super_block *sb, void *data, int silent)
+{
     struct inode *root_inode = NULL;
     // 計算總內存大小，包括 osfs_sb_info, bitmaps, inode table, data blocks
-    size_t total_memory_size = sizeof(struct osfs_sb_info) + 
-                               2 * BITMAP_SIZE + 
-                               (INODE_COUNT * sizeof(struct osfs_inode)) + 
+    size_t total_memory_size = sizeof(struct osfs_sb_info) + 2 * BITMAP_SIZE +
+                               (INODE_COUNT * sizeof(struct osfs_inode)) +
                                (DATA_BLOCK_COUNT * BLOCK_SIZE);
-    void *memory_region = vmalloc(total_memory_size); // 使用 vmalloc 分配內存
+    void *memory_region = vmalloc(total_memory_size);  // 使用 vmalloc 分配內存
     if (!memory_region)
         return -ENOMEM;
 
-    struct osfs_sb_info *sb_info = (struct osfs_sb_info *)memory_region;
+    struct osfs_sb_info *sb_info = (struct osfs_sb_info *) memory_region;
     sb_info->magic = MYFS_MAGIC;
     sb_info->block_size = BLOCK_SIZE;
     sb_info->inode_count = INODE_COUNT;
 
     // 劃分內存區域
-    sb_info->block_bitmap = (unsigned long *)(memory_region + sizeof(struct osfs_sb_info));
-    sb_info->inode_bitmap = (unsigned long *)(sb_info->block_bitmap + BITMAP_SIZE);
-    sb_info->inode_table = (void *)(sb_info->inode_bitmap + BITMAP_SIZE);
-    sb_info->data_blocks = (void *)(sb_info->inode_table + (INODE_COUNT * sizeof(struct osfs_inode)));
+    sb_info->block_bitmap =
+        (unsigned long *) (memory_region + sizeof(struct osfs_sb_info));
+    sb_info->inode_bitmap =
+        (unsigned long *) (sb_info->block_bitmap + BITMAP_SIZE);
+    sb_info->inode_table = (void *) (sb_info->inode_bitmap + BITMAP_SIZE);
+    sb_info->data_blocks = (void *) (sb_info->inode_table +
+                                     (INODE_COUNT * sizeof(struct osfs_inode)));
 
     // 初始化 bitmaps, inode table 和 data blocks
     memset(sb_info->block_bitmap, 0, BITMAP_SIZE);
@@ -73,7 +75,8 @@ static int myfs_fill_super(struct super_block *sb, void *data, int silent) {
 
 
 // 卸載文件系統時釋放內存
-static void myfs_kill_superblock(struct super_block *sb) {
+static void myfs_kill_superblock(struct super_block *sb)
+{
     void *memory_region = sb->s_fs_info;
     vfree(memory_region);  // 使用 vfree 釋放內存
     kill_litter_super(sb);
@@ -88,7 +91,8 @@ static struct file_system_type myfs_type = {
 };
 
 // 模組初始化
-static int __init myfs_init(void) {
+static int __init myfs_init(void)
+{
     int ret;
 
     ret = register_filesystem(&myfs_type);
@@ -101,7 +105,8 @@ static int __init myfs_init(void) {
 }
 
 // 模組退出
-static void __exit myfs_exit(void) {
+static void __exit myfs_exit(void)
+{
     int ret;
 
     ret = unregister_filesystem(&myfs_type);

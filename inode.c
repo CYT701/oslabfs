@@ -1,50 +1,59 @@
+#include <linux/errno.h>  // 標準錯誤代碼定義
+#include <linux/fs.h>  // 基本的文件系統結構（如 inode, dentry, super_block）
+#include <linux/slab.h>    // 動態內存分配函數（如 kmalloc, kzalloc）
+#include <linux/string.h>  // 標準字符串操作（如 memset）
+#include <linux/time.h>    // 獲取和設置時間的相關函數
 #include "myfs.h"
-#include <linux/fs.h>         // 基本的文件系統結構（如 inode, dentry, super_block）
-#include <linux/slab.h>       // 動態內存分配函數（如 kmalloc, kzalloc）
-#include <linux/time.h>       // 獲取和設置時間的相關函數
-#include <linux/errno.h>      // 標準錯誤代碼定義
-#include <linux/string.h>     // 標準字符串操作（如 memset）
 
-struct osfs_inode *osfs_get_inode(struct osfs_sb_info *sbi, int ino) {
+struct osfs_inode *osfs_get_inode(struct osfs_sb_info *sbi, int ino)
+{
     if (ino < 0 || ino >= sbi->inode_count) {
         pr_err("get_inode: Invalid inode number %d\n", ino);
         return NULL;
     }
     // calculate the inode pointer using inode number
-    struct osfs_inode *inode_ptr = (struct osfs_inode *)((char *)sbi->inode_table + ino * sizeof(struct osfs_inode));
+    struct osfs_inode *inode_ptr =
+        (struct osfs_inode *) ((char *) sbi->inode_table +
+                               ino * sizeof(struct osfs_inode));
     return inode_ptr;
 }
 
 
 
-static uint32_t get_free_inode(struct osfs_sb_info *sbi) {
+static uint32_t get_free_inode(struct osfs_sb_info *sbi)
+{
     uint32_t ino;
     // 遍歷 inode bitmap，找到一個空閒的 inode
     for (ino = 0; ino < sbi->inode_count; ino++) {
         if (!test_bit(ino, sbi->inode_bitmap)) {
             // 標記該 inode 為已使用
             set_bit(ino, sbi->inode_bitmap);
-            sbi->nr_free_inodes--; // 減少空閒 inode 計數
+            sbi->nr_free_inodes--;  // 減少空閒 inode 計數
             return ino;
         }
     }
-    return 0; // 沒有可用的 inode
+    return 0;  // 沒有可用的 inode
 }
 
 
-static int osfs_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool excl) {
+static int osfs_create(struct inode *dir,
+                       struct dentry *dentry,
+                       umode_t mode,
+                       bool excl)
+{
     struct inode *inode;
     struct osfs_inode *osfs_inode;
     struct super_block *sb = dir->i_sb;
     struct osfs_sb_info *sbi = sb->s_fs_info;
-    struct osfs_inode *parent_inode = (struct osfs_inode *)dir->i_private;
+    struct osfs_inode *parent_inode = (struct osfs_inode *) dir->i_private;
     uint32_t ino;
 
     /*check whether the file already exists*/
 
     for (int i = 0; i < parent_inode->i_dir_entry_count; i++) {
-        if (strcmp(parent_inode->i_dir_entries[i].name, dentry->d_name.name) == 0) {
-            return -EEXIST; 
+        if (strcmp(parent_inode->i_dir_entries[i].name, dentry->d_name.name) ==
+            0) {
+            return -EEXIST;
         }
     }
 
@@ -55,13 +64,13 @@ static int osfs_create(struct inode *dir, struct dentry *dentry, umode_t mode, b
     // find a free inode number from inode bitmap
     ino = get_free_inode(sbi);
     if (ino == 0) {
-        return -ENOSPC; 
+        return -ENOSPC;
     }
 
     // allocate and new inode structure
     inode = new_inode(sb);
     if (!inode) {
-        return -ENOMEM; 
+        return -ENOMEM;
     }
 
     // init inode attribute
@@ -85,12 +94,12 @@ static int osfs_create(struct inode *dir, struct dentry *dentry, umode_t mode, b
 
     // 更新父目錄的修改時間
     dir->i_mtime = dir->i_ctime = current_time(dir);
-    
+
 
     return 0;
 }
 
 
-static const struct inode_operations osfs_dir_inode_operations  = {
+static const struct inode_operations osfs_dir_inode_operations = {
     .create = osfs_create,
 };
